@@ -1,1 +1,188 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>tt.fsp — Tomatonator Thrower</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
 
+<link rel="icon" href="icon.png">
+
+<style>
+  *{
+    margin:0;
+    padding:0;
+    box-sizing:border-box;
+    user-select:none;
+    -webkit-user-select:none;
+    touch-action:none;
+  }
+
+  body{
+    background:#7F7F7F;
+    font-family: Arial, Helvetica, sans-serif;
+    overflow:hidden;
+  }
+
+  /* TOP BAR */
+  .topbar{
+    height:48px;
+    background:#8A8A8A;
+    display:flex;
+    align-items:center;
+    padding:0 12px;
+    gap:16px;
+  }
+
+  .topbar img{
+    height:28px;
+  }
+
+  .nav{
+    display:flex;
+    gap:14px;
+  }
+
+  .nav span{
+    cursor:pointer;
+    font-size:14px;
+  }
+
+  /* CONTENT */
+  .content{
+    position:relative;
+    width:100vw;
+    height:calc(100vh - 48px);
+    overflow:hidden;
+  }
+
+  .mode{
+    position:absolute;
+    inset:0;
+    display:none;
+  }
+
+  .mode.active{
+    display:block;
+  }
+
+  /* VISUAL MODE */
+  #visual{
+    background-color:#7F7F7F;
+  }
+
+  #template{
+    position:absolute;
+    inset:0;
+    background-image:url("template.png");
+    background-repeat:no-repeat;
+    background-position:center;
+    background-size:300px auto;
+    pointer-events:none;
+    opacity:0.6;
+  }
+
+  .tomato{
+    position:absolute;
+    width:96px;
+    pointer-events:none;
+  }
+
+  /* EDITOR / ABOUT */
+  .panel{
+    padding:16px;
+    font-size:14px;
+  }
+</style>
+</head>
+
+<body>
+
+<div class="topbar">
+  <img src="icon.png">
+  <div class="nav">
+    <span data-mode="visual">Visual</span>
+    <span data-mode="editor">Editor</span>
+    <span data-mode="about">About</span>
+  </div>
+</div>
+
+<div class="content">
+
+  <div id="visual" class="mode active">
+    <div id="template"></div>
+  </div>
+
+  <div id="editor" class="mode panel">
+    <p><b>Editor</b></p>
+    <p>BGM only plays here.</p>
+  </div>
+
+  <div id="about" class="mode panel">
+    <p><b>tt.fsp — Fire Source Project</b></p><br>
+    <p><b>what's is this for?</b><br>
+    it's an web html where it makes the "Tomato Throw meme" easier to recreate ig.</p><br>
+
+    <p><b>why did u make this html?</b><br>
+    just for fun.</p><br>
+
+    <p><b>what's fsp?</b><br>
+    fsp stands for Fire-Source-Project.</p>
+  </div>
+
+</div>
+
+<audio id="splash" src="splash.ogg"></audio>
+<audio id="bgm" src="bgm.ogg" loop></audio>
+
+<script>
+  const modes = document.querySelectorAll(".mode");
+  const nav = document.querySelectorAll(".nav span");
+  const visual = document.getElementById("visual");
+  const splash = document.getElementById("splash");
+  const bgm = document.getElementById("bgm");
+
+  function setMode(name){
+    modes.forEach(m => m.classList.remove("active"));
+    document.getElementById(name).classList.add("active");
+
+    document.querySelectorAll(".tomato").forEach(t => t.remove());
+
+    if(name === "editor"){
+      bgm.play().catch(()=>{});
+    }else{
+      bgm.pause();
+      bgm.currentTime = 0;
+    }
+  }
+
+  nav.forEach(btn=>{
+    btn.onclick = ()=> setMode(btn.dataset.mode);
+  });
+
+  function spawnTomato(x,y){
+    const img = document.createElement("img");
+    img.src = "tomato.gif";
+    img.className = "tomato";
+    img.style.left = (x - 48) + "px";
+    img.style.top = (y - 48) + "px";
+    visual.appendChild(img);
+
+    setTimeout(()=>{
+      splash.currentTime = 0;
+      splash.play().catch(()=>{});
+    }, 900);
+  }
+
+  visual.addEventListener("pointerdown", e=>{
+    spawnTomato(e.clientX, e.clientY);
+  });
+
+  visual.addEventListener("pointermove", e=>{
+    if(e.buttons){
+      spawnTomato(e.clientX, e.clientY);
+    }
+  });
+</script>
+
+</body>
+  </html>
