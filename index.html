@@ -1,100 +1,77 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-<meta charset="utf-8">
-<title>tt.fsp — Tomatonator Thrower</title>
+<meta charset="utf-8" />
+<title>Tomatonator Thrower</title>
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
 <link rel="icon" href="icon.png">
 
 <style>
-*{
-  margin:0;
-  padding:0;
-  box-sizing:border-box;
-  user-select:none;
-  -webkit-user-select:none;
-  touch-action:none;
-}
+  *{ box-sizing:border-box; -webkit-user-select:none; user-select:none; touch-action:none; }
+  html,body{ height:100%; margin:0; }
+  body{
+    background:#7F7F7F;
+    font-family:Arial, Helvetica, sans-serif;
+    overflow:hidden;
+  }
 
-body{
-  background:#7F7F7F;
-  font-family:Arial, Helvetica, sans-serif;
-  overflow:hidden;
-}
+  /* TOP BAR */
+  .topbar{
+    height:60px;
+    background:#8F8F8F;
+    display:flex;
+    align-items:center;
+    gap:32px;
+    padding:0 20px;
+  }
+  .topbar img{ height:34px; display:block; }
 
-/* TOP BAR */
-.topbar{
-  height:60px;
-  background:#8F8F8F;
-  display:flex;
-  align-items:center;
-  gap:32px;
-  padding:0 20px;
-}
+  .nav{ display:flex; gap:22px; align-items:center; }
+  .nav span{ cursor:pointer; font-size:15px; padding:10px 14px; border-radius:6px; }
+  .nav span:hover{ background: rgba(255,255,255,0.03); }
 
-.topbar img{
-  height:34px;
-}
+  /* CONTENT */
+  .content{ position:relative; width:100vw; height:calc(100vh - 60px); overflow:hidden; }
 
-.nav span{
-  cursor:pointer;
-  font-size:15px;
-  padding:10px 14px;
-}
+  .mode{ position:absolute; inset:0; display:none; }
+  .mode.active{ display:block; }
 
-/* CONTENT */
-.content{
-  position:relative;
-  width:100vw;
-  height:calc(100vh - 60px);
-}
+  /* VISUAL */
+  #visual{ position:relative; width:100%; height:100%; overflow:hidden; background:#7F7F7F; }
 
-/* MODES */
-.mode{
-  position:absolute;
-  inset:0;
-  display:none;
-}
+  /* Template image (100% visível) */
+  #templateImg{
+    position:absolute;
+    left:50%;
+    top:20%;
+    transform:translateX(-50%);
+    width:340px; /* tamanho médio */
+    height:auto;
+    display:block;
+    pointer-events:none;
+    image-rendering: auto;
+  }
 
-.mode.active{
-  display:block;
-}
+  /* Tomato */
+  .tomato{
+    position:absolute;
+    width:420px; /* bem grande */
+    height:auto;
+    pointer-events:none;
+    transform-origin:center;
+    will-change: transform, opacity;
+    display:block;
+  }
 
-/* VISUAL */
-#visual{
-  position:relative;
-}
-
-#template{
-  position:absolute;
-  inset:0;
-  background-image:url("template.png");
-  background-repeat:no-repeat;
-  background-position:center;
-  background-size:340px auto;
-  pointer-events:none;
-}
-
-/* TOMATO */
-.tomato{
-  position:absolute;
-  width:420px; /* BEM GRANDE */
-  pointer-events:none;
-}
-
-/* PANELS */
-.panel{
-  padding:20px;
-  font-size:15px;
-}
+  /* PANELS */
+  .panel{ padding:20px; font-size:15px; background:transparent; color:#111; overflow:auto; }
 </style>
 </head>
-
 <body>
 
 <div class="topbar">
-  <img src="icon.png">
-  <div class="nav">
+  <img src="icon.png" alt="icon">
+  <div class="nav" role="navigation">
     <span data-mode="visual">Visual</span>
     <span data-mode="editor">Editor</span>
     <span data-mode="about">About</span>
@@ -103,105 +80,161 @@ body{
 
 <div class="content">
   <div id="visual" class="mode active">
-    <div id="template"></div>
+    <img id="templateImg" src="template.png" alt="template">
   </div>
 
   <div id="editor" class="mode panel">
-    <b>Editor</b>
+    <b>Editor</b><br><br>
+    BGM toca aqui.
   </div>
 
   <div id="about" class="mode panel">
     <b>tt.fsp — Fire Source Project</b><br><br>
-
     <b>what's is this for?</b><br>
     it's an web html where it makes the "Tomato Throw meme" easier to recreate ig.<br><br>
-
     <b>why did u make this html?</b><br>
     just for fun.<br><br>
-
     <b>what's fsp?</b><br>
     fsp stands for Fire-Source-Project.
   </div>
 </div>
 
+<!-- Áudio -->
 <audio id="bgm" src="bgm.ogg" loop></audio>
 
 <script>
-const modes = document.querySelectorAll(".mode");
-const visual = document.getElementById("visual");
-const bgm = document.getElementById("bgm");
+/* CONFIG */
+const TOMATO_WIDTH = 420;      // px
+const FREEZE_AFTER_MS = 1200;  // tempo até trocar por tomato_last.png (se existir)
+const BGM_FADE_MS = 600;
 
-/* MODE SWITCH */
+/* ELEMENTS */
+const visual = document.getElementById('visual');
+const templateImg = document.getElementById('templateImg');
+const modes = document.querySelectorAll('.mode');
+const navBtns = document.querySelectorAll('.nav span');
+const bgm = document.getElementById('bgm');
+
+/* Segurança: mostrar erros no console se assets faltarem */
+function checkAsset(url, name){
+  fetch(url, {method:'HEAD'}).then(r=>{
+    if(!r.ok) console.warn(`[tt.fsp] aviso: ${name} retornou ${r.status}`);
+  }).catch(e=>{
+    console.warn(`[tt.fsp] aviso: não foi possível checar ${name} (${url})`, e);
+  });
+}
+// checar assets principais (opcional, ajuda debugging)
+checkAsset('template.png','template.png');
+checkAsset('tomato.gif','tomato.gif');
+checkAsset('splash.ogg','splash.ogg');
+checkAsset('tomato_last.png','tomato_last.png'); // pode não existir, é ok
+
+/* MODO */
+function clearTomatoes(){ document.querySelectorAll('.tomato').forEach(t => t.remove()); }
+
 function setMode(name){
-  modes.forEach(m => m.classList.remove("active"));
-  document.getElementById(name).classList.add("active");
+  modes.forEach(m => m.classList.remove('active'));
+  const el = document.getElementById(name);
+  if(!el) return;
+  el.classList.add('active');
 
-  document.querySelectorAll(".tomato").forEach(t => t.remove());
+  clearTomatoes();
 
-  if(name === "editor" || name === "about"){
+  if(name === 'editor' || name === 'about'){
     bgm.volume = 1;
     bgm.play().catch(()=>{});
-  }else{
-    fadeOutBGM();
+  } else {
+    fadeOutAudio(bgm, BGM_FADE_MS);
   }
 }
+navBtns.forEach(b => b.addEventListener('click', ()=> setMode(b.dataset.mode)));
 
-document.querySelectorAll(".nav span").forEach(btn=>{
-  btn.onclick = ()=> setMode(btn.dataset.mode);
-});
-
-/* BGM FADE */
-function fadeOutBGM(){
-  let v = bgm.volume;
-  const i = setInterval(()=>{
-    v -= 0.05;
-    if(v <= 0){
-      clearInterval(i);
-      bgm.pause();
-      bgm.currentTime = 0;
-      bgm.volume = 1;
-    }else{
-      bgm.volume = v;
+/* BGM fade */
+function fadeOutAudio(audioEl, duration){
+  if(audioEl.paused) return;
+  const steps = 20;
+  const stepTime = Math.max(8, Math.round(duration/steps));
+  let current = 0;
+  const initial = audioEl.volume || 1;
+  const id = setInterval(()=>{
+    current++;
+    const v = initial * (1 - current/steps);
+    audioEl.volume = Math.max(0, v);
+    if(current >= steps){
+      clearInterval(id);
+      audioEl.pause();
+      audioEl.currentTime = 0;
+      audioEl.volume = 1;
     }
-  }, 30);
+  }, stepTime);
 }
 
-/* TOMATO */
-function spawnTomato(x,y){
-  const rect = visual.getBoundingClientRect();
+/* Som de spawn (cada spawn cria audio novo) */
+function playSpawnSound(){
+  const s = new Audio('splash.ogg');
+  s.volume = 1;
+  s.currentTime = 0;
+  s.play().catch(()=>{/* autoplay bloqueado possivelmente, ok */});
+}
 
-  const img = document.createElement("img");
-  img.src = "tomato.gif";
-  img.className = "tomato";
-  img.style.left = (x - rect.left - 210) + "px";
-  img.style.top  = (y - rect.top  - 210) + "px";
+/* Spawn: posição relativa ao container visual */
+function spawnTomatoAt(clientX, clientY){
+  // garante que estamos no modo visual
+  if(!document.getElementById('visual').classList.contains('active')) return;
+
+  const rect = visual.getBoundingClientRect();
+  const x = clientX - rect.left;
+  const y = clientY - rect.top;
+
+  const img = document.createElement('img');
+  img.className = 'tomato';
+  img.src = 'tomato.gif';
+  img.style.width = TOMATO_WIDTH + 'px';
+  img.style.left = (x - TOMATO_WIDTH/2) + 'px';
+  img.style.top  = (y - TOMATO_WIDTH/2) + 'px';
+  img.alt = 'tomato';
 
   visual.appendChild(img);
 
-  const s = new Audio("splash.ogg");
-  s.play().catch(()=>{});
+  // som
+  playSpawnSound();
 
-  /* freeze real */
+  // substitui por último frame estático se existir (fallback mantém gif)
   setTimeout(()=>{
-    img.src = "tomato_last.png";
-  }, 1200);
+    // tenta carregar tomato_last.png primeiro (HEAD)
+    fetch('tomato_last.png', {method:'HEAD'}).then(r=>{
+      if(r.ok){
+        img.src = 'tomato_last.png';
+      } else {
+        // não tem tomato_last.png -> deixa o gif (não ideal, mas compatível)
+        // no caso do gif, não dá pra garantir freeze; recomendação: exportar tomato_last.png
+      }
+    }).catch(()=>{
+      // erro no fetch -> mantém gif
+    });
+  }, FREEZE_AFTER_MS);
 }
 
-/* INPUT */
-let down = false;
-
-visual.addEventListener("pointerdown", e=>{
-  down = true;
-  spawnTomato(e.clientX, e.clientY);
+/* Input: pointerdown + pointermove spam (funciona mobile) */
+let isDown = false;
+visual.addEventListener('pointerdown', e=>{
+  isDown = true;
+  spawnTomatoAt(e.clientX, e.clientY);
 });
-
-visual.addEventListener("pointermove", e=>{
-  if(down){
-    spawnTomato(e.clientX, e.clientY);
-  }
+visual.addEventListener('pointermove', e=>{
+  if(!isDown) return;
+  spawnTomatoAt(e.clientX, e.clientY);
 });
+window.addEventListener('pointerup', ()=> isDown = false);
+window.addEventListener('pointercancel', ()=> isDown = false);
 
-window.addEventListener("pointerup", ()=> down = false);
+/* Inicializa estado */
+window.addEventListener('load', ()=> {
+  setMode('visual');
+  // força carregar a imagem do template e mostra log caso não carregue
+  templateImg.addEventListener('error', ()=> console.warn('[tt.fsp] template.png falhou ao carregar'));
+  templateImg.addEventListener('load', ()=> console.log('[tt.fsp] template.png carregado'));
+});
 </script>
 
 </body>
