@@ -1,93 +1,100 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-<meta charset="utf-8" />
+<meta charset="utf-8">
 <title>tt.fsp — Tomatonator Thrower</title>
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
 <link rel="icon" href="icon.png">
 
 <style>
-  *{ margin:0; padding:0; box-sizing:border-box; -webkit-user-select:none; user-select:none; touch-action:none; }
-  html,body{ height:100%; }
-  body{
-    background:#7F7F7F;
-    font-family: Arial, Helvetica, sans-serif;
-    overflow:hidden;
-  }
+*{
+  margin:0;
+  padding:0;
+  box-sizing:border-box;
+  user-select:none;
+  -webkit-user-select:none;
+  touch-action:none;
+}
 
-  /* TOP BAR (mais espaçosa) */
-  .topbar{
-    height:56px;
-    background:#8E8E8E; /* um pouco mais clara */
-    display:flex;
-    align-items:center;
-    gap:28px;
-    padding:0 18px;
-    box-shadow: 0 1px 0 rgba(0,0,0,0.06);
-  }
+body{
+  background:#7F7F7F;
+  font-family:Arial, Helvetica, sans-serif;
+  overflow:hidden;
+}
 
-  .topbar img{ height:32px; }
+/* TOP BAR */
+.topbar{
+  height:60px;
+  background:#8F8F8F;
+  display:flex;
+  align-items:center;
+  gap:32px;
+  padding:0 20px;
+}
 
-  .nav{
-    display:flex;
-    gap:22px;
-    align-items:center;
-  }
+.topbar img{
+  height:34px;
+}
 
-  .nav span{
-    cursor:pointer;
-    font-size:15px;
-    padding:8px 10px;
-    border-radius:6px;
-    user-select:none;
-  }
+.nav span{
+  cursor:pointer;
+  font-size:15px;
+  padding:10px 14px;
+}
 
-  .nav span:hover{
-    background: rgba(255,255,255,0.03);
-  }
+/* CONTENT */
+.content{
+  position:relative;
+  width:100vw;
+  height:calc(100vh - 60px);
+}
 
-  /* CONTENT */
-  .content{
-    position:relative;
-    width:100vw;
-    height:calc(100vh - 56px);
-    overflow:hidden;
-  }
+/* MODES */
+.mode{
+  position:absolute;
+  inset:0;
+  display:none;
+}
 
-  .mode{ position:absolute; inset:0; display:none; }
-  .mode.active{ display:block; }
+.mode.active{
+  display:block;
+}
 
-  /* VISUAL */
-  #visual{ position:relative; background:#7F7F7F; overflow:hidden; }
+/* VISUAL */
+#visual{
+  position:relative;
+}
 
-  /* template (será substituído por uma versão sem transparência via canvas) */
-  #template{
-    position:absolute;
-    inset:0;
-    background-repeat:no-repeat;
-    background-position:center;
-    background-size:320px auto;
-    pointer-events:none;
-  }
+#template{
+  position:absolute;
+  inset:0;
+  background-image:url("template.png");
+  background-repeat:no-repeat;
+  background-position:center;
+  background-size:340px auto;
+  pointer-events:none;
+}
 
-  /* tomato - bem maior */
-  .tomato{
-    position:absolute;
-    width:360px; /* maior */
-    height:auto;
-    pointer-events:none;
-    will-change: transform, opacity;
-  }
+/* TOMATO */
+.tomato{
+  position:absolute;
+  width:420px; /* BEM GRANDE */
+  pointer-events:none;
+}
 
-  /* PANELS */
-  .panel{ padding:20px; font-size:15px; color:#111; }
+/* PANELS */
+.panel{
+  padding:20px;
+  font-size:15px;
+}
 </style>
 </head>
+
 <body>
 
 <div class="topbar">
-  <img src="icon.png" alt="icon">
-  <div class="nav" role="navigation" aria-label="main">
+  <img src="icon.png">
+  <div class="nav">
     <span data-mode="visual">Visual</span>
     <span data-mode="editor">Editor</span>
     <span data-mode="about">About</span>
@@ -100,8 +107,7 @@
   </div>
 
   <div id="editor" class="mode panel">
-    <b>Editor</b><br><br>
-    BGM tocando aqui.
+    <b>Editor</b>
   </div>
 
   <div id="about" class="mode panel">
@@ -118,195 +124,84 @@
   </div>
 </div>
 
-<!-- ÁUDIO -->
 <audio id="bgm" src="bgm.ogg" loop></audio>
 
 <script>
-/* ===== CONFIG ===== */
-const TOMATO_SIZE = 360;     // px (largura)
-const FREEZE_DELAY = 1200;   // ms antes de capturar o frame e trocar por imagem estática
-const TEMPLATE_DISPLAY_WIDTH = 320; // px, tamanho do template no fundo
-const TEMPLATE_BG = "#7F7F7F"; // cor de fundo opaca usada por baixo da imagem do template
-const BGM_FADE_MS = 600;
+const modes = document.querySelectorAll(".mode");
+const visual = document.getElementById("visual");
+const bgm = document.getElementById("bgm");
 
-/* ===== ELEMENTS ===== */
-const visual = document.getElementById('visual');
-const templateDiv = document.getElementById('template');
-const modes = document.querySelectorAll('.mode');
-const navBtns = document.querySelectorAll('.nav span');
-const bgm = document.getElementById('bgm');
-
-/* ===== carregar template sem transparência (desenha em canvas sobre fundo opaco) ===== */
-function prepareTemplateOpaque(){
-  const img = new Image();
-  img.src = 'template.png';
-  img.onload = () => {
-    // escala proporcional para width TEMPLATE_DISPLAY_WIDTH
-    const scale = TEMPLATE_DISPLAY_WIDTH / img.naturalWidth;
-    const w = Math.round(img.naturalWidth * scale);
-    const h = Math.round(img.naturalHeight * scale);
-
-    const c = document.createElement('canvas');
-    c.width = w;
-    c.height = h;
-    const ctx = c.getContext('2d');
-
-    // fundo opaco para "remover" transparência
-    ctx.fillStyle = TEMPLATE_BG;
-    ctx.fillRect(0,0,w,h);
-
-    // desenha a imagem encima
-    ctx.drawImage(img, 0,0, w,h);
-
-    // usa dataURL como background (sem transparência)
-    const dataURL = c.toDataURL('image/png');
-    templateDiv.style.backgroundImage = `url("${dataURL}")`;
-    templateDiv.style.backgroundSize = `${w}px auto`;
-  };
-  img.onerror = ()=> {
-    // fallback: usar direto a imagem (se algo falhar)
-    templateDiv.style.backgroundImage = 'url("template.png")';
-    templateDiv.style.backgroundSize = `${TEMPLATE_DISPLAY_WIDTH}px auto`;
-  };
-}
-prepareTemplateOpaque();
-
-/* ===== MODO (troca de abas) ===== */
-function clearTomatoes(){
-  document.querySelectorAll('.tomato').forEach(t => t.remove());
-}
-
+/* MODE SWITCH */
 function setMode(name){
-  modes.forEach(m => m.classList.remove('active'));
-  const el = document.getElementById(name);
-  if(!el) return;
-  el.classList.add('active');
+  modes.forEach(m => m.classList.remove("active"));
+  document.getElementById(name).classList.add("active");
 
-  // limpar tomates salvos quando muda de modo
-  clearTomatoes();
+  document.querySelectorAll(".tomato").forEach(t => t.remove());
 
-  // BGM: toca em editor e about, fade-out quando vai pra visual
-  if(name === 'editor' || name === 'about'){
-    // garante volume normal e play
+  if(name === "editor" || name === "about"){
     bgm.volume = 1;
     bgm.play().catch(()=>{});
-  } else {
-    // fade out, depois pausa e reset time
-    fadeOutAudio(bgm, BGM_FADE_MS);
+  }else{
+    fadeOutBGM();
   }
 }
 
-navBtns.forEach(b => b.addEventListener('click', ()=> setMode(b.dataset.mode)));
+document.querySelectorAll(".nav span").forEach(btn=>{
+  btn.onclick = ()=> setMode(btn.dataset.mode);
+});
 
-/* ===== FADE AUDIO ===== */
-function fadeOutAudio(audioEl, duration){
-  const start = audioEl.volume;
-  if(start <= 0.01){
-    audioEl.pause();
-    audioEl.currentTime = 0;
-    audioEl.volume = 1;
-    return;
-  }
-  const steps = 20;
-  const stepTime = Math.max(8, Math.round(duration / steps));
-  let step = 0;
-  const id = setInterval(()=>{
-    step++;
-    const v = start * (1 - step/steps);
-    audioEl.volume = Math.max(0, v);
-    if(step >= steps){
-      clearInterval(id);
-      audioEl.pause();
-      audioEl.currentTime = 0;
-      audioEl.volume = 1; // restaura
+/* BGM FADE */
+function fadeOutBGM(){
+  let v = bgm.volume;
+  const i = setInterval(()=>{
+    v -= 0.05;
+    if(v <= 0){
+      clearInterval(i);
+      bgm.pause();
+      bgm.currentTime = 0;
+      bgm.volume = 1;
+    }else{
+      bgm.volume = v;
     }
-  }, stepTime);
+  }, 30);
 }
 
-/* ===== SPAWN TOMATO (posição relativa, som por spawn, freeze via canvas) ===== */
-function playSpawnSound(){
-  try{
-    const s = new Audio('splash.ogg');
-    s.currentTime = 0;
-    s.play().catch(()=>{/* autoplay block? ignore */});
-  }catch(e){}
-}
-
-function spawnTomatoAt(clientX, clientY){
-  // calcula posição relativa ao container visual
+/* TOMATO */
+function spawnTomato(x,y){
   const rect = visual.getBoundingClientRect();
-  const x = clientX - rect.left;
-  const y = clientY - rect.top;
 
-  const img = document.createElement('img');
-  img.src = 'tomato.gif';
-  img.className = 'tomato';
-  img.style.width = TOMATO_SIZE + 'px';
-  img.style.left = (x - TOMATO_SIZE/2) + 'px';
-  img.style.top  = (y - TOMATO_SIZE/2) + 'px';
-  img.style.opacity = '1';
+  const img = document.createElement("img");
+  img.src = "tomato.gif";
+  img.className = "tomato";
+  img.style.left = (x - rect.left - 210) + "px";
+  img.style.top  = (y - rect.top  - 210) + "px";
+
   visual.appendChild(img);
 
-  // play sound per spawn (clonando audio)
-  playSpawnSound();
+  const s = new Audio("splash.ogg");
+  s.play().catch(()=>{});
 
-  // após delay, capturar aparência atual do elemento e substituir por PNG estática
+  /* freeze real */
   setTimeout(()=>{
-    try{
-      // cria canvas nas mesmas dimensões visuais
-      const canvas = document.createElement('canvas');
-      const w = img.clientWidth || TOMATO_SIZE;
-      const h = img.clientHeight || Math.round(TOMATO_SIZE * 0.9);
-      canvas.width = w;
-      canvas.height = h;
-      const ctx = canvas.getContext('2d');
-
-      // desenha o elemento <img> atual (a maioria dos navegadores desenhará o frame atual)
-      ctx.drawImage(img, 0, 0, w, h);
-
-      const dataURL = canvas.toDataURL('image/png');
-
-      // substitui o gif por img estática
-      const staticImg = document.createElement('img');
-      staticImg.src = dataURL;
-      staticImg.className = 'tomato';
-      staticImg.style.width = w + 'px';
-      staticImg.style.left = img.style.left;
-      staticImg.style.top  = img.style.top;
-      staticImg.style.pointerEvents = 'none';
-
-      img.replaceWith(staticImg);
-    }catch(err){
-      // fallback: se algo falhar, deixamos o gif como está e ainda tocamos splash
-      // (melhor do que quebrar tudo)
-    }
-  }, FREEZE_DELAY);
+    img.src = "tomato_last.png";
+  }, 1200);
 }
 
-/* ===== Eventos de input (suporta spam por arrastar) ===== */
-let pointerDown = false;
+/* INPUT */
+let down = false;
 
-visual.addEventListener('pointerdown', (e)=>{
-  // só aceita spawn se estiver no modo visual
-  if(!document.getElementById('visual').classList.contains('active')) return;
-  pointerDown = true;
-  spawnTomatoAt(e.clientX, e.clientY);
+visual.addEventListener("pointerdown", e=>{
+  down = true;
+  spawnTomato(e.clientX, e.clientY);
 });
 
-visual.addEventListener('pointermove', (e)=>{
-  if(!pointerDown) return;
-  if(!document.getElementById('visual').classList.contains('active')) return;
-  spawnTomatoAt(e.clientX, e.clientY);
+visual.addEventListener("pointermove", e=>{
+  if(down){
+    spawnTomato(e.clientX, e.clientY);
+  }
 });
 
-window.addEventListener('pointerup', ()=> pointerDown = false);
-window.addEventListener('pointercancel', ()=> pointerDown = false);
-
-/* ===== Inicialização: garante que top bar e comportamentos default estejam prontos ===== */
-window.addEventListener('load', ()=>{
-  // define estado inicial (visual já ativo)
-  setMode('visual');
-});
+window.addEventListener("pointerup", ()=> down = false);
 </script>
 
 </body>
